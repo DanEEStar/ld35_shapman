@@ -244,6 +244,7 @@ class Shapman {
     sprite: Phaser.Sprite;
     sprite2: Phaser.Sprite;
     nextDirection: number;
+    lastDirection: number;
     group: Phaser.Group;
     state: ShapmanState;
 
@@ -260,9 +261,12 @@ class Shapman {
         //this.sprite2.anchor.set(0.5);
 
         this.sprite.animations.add('walkRight', [54, 55]);
-        //this.sprite2.animations.add('walkRight', [54, 55]);
+        this.sprite.animations.add('walkDown', [54, 56]);
+        this.sprite.animations.add('walkLeft', [54, 57]);
+        this.sprite.animations.add('walkUp', [54, 58]);
+        this.sprite.animations.add('stand', [54]);
 
-        this.sprite.animations.play('walkRight', 10, true);
+        //this.sprite.animations.play('walkDown', 5, true);
         game.physics.enable(this.sprite);
         this.sprite.body.collideWorldBounds = true;
 
@@ -270,6 +274,21 @@ class Shapman {
     }
 
     update() {
+        if(this.lastDirection !== this.movement1.currentDirection) {
+            if(this.movement1.currentDirection === Phaser.UP) {
+                this.sprite.animations.play('walkUp', 5, true);
+            }
+            else if(this.movement1.currentDirection === Phaser.LEFT) {
+                this.sprite.animations.play('walkLeft', 5, true);
+            }
+            else if(this.movement1.currentDirection === Phaser.RIGHT) {
+                this.sprite.animations.play('walkRight', 5, true);
+            }
+            else if(this.movement1.currentDirection === Phaser.DOWN) {
+                this.sprite.animations.play('walkDown', 5, true);
+            }
+        }
+        this.lastDirection = this.movement1.currentDirection;
         this.movement1.nextDirection = this.nextDirection;
         this.movement1.update();
     }
@@ -300,6 +319,7 @@ class Shapman {
         this.grow();
         this.sprite.x = this.tileX * 32 + 16;
         this.sprite.y = this.tileY * 32 + 16;
+        this.movement1.calibrateSpritePosition(new Phaser.Point(this.sprite.x, this.sprite.y));
     }
 }
 
@@ -399,16 +419,16 @@ class Ghost {
             }
 
             if(this.movement.currentDirection === Phaser.UP) {
-                this.sprite.animations.play(statePrefix + 'WalkUp');
+                this.sprite.animations.play(statePrefix + 'WalkUp', 5, true);
             }
             else if(this.movement.currentDirection === Phaser.LEFT) {
-                this.sprite.animations.play(statePrefix + 'WalkLeft');
+                this.sprite.animations.play(statePrefix + 'WalkLeft', 5, true);
             }
             else if(this.movement.currentDirection === Phaser.RIGHT) {
-                this.sprite.animations.play(statePrefix + 'WalkRight');
+                this.sprite.animations.play(statePrefix + 'WalkRight', 5, true);
             }
             else if(this.movement.currentDirection === Phaser.DOWN) {
-                this.sprite.animations.play(statePrefix + 'WalkDown');
+                this.sprite.animations.play(statePrefix + 'WalkDown', 5, true);
             }
         }
 
@@ -523,7 +543,7 @@ class GameState extends Phaser.State {
         this.level.loadSpecialSprites();
 
         let music = this.add.audio('bu');
-        music.play();
+        music.play('', 0, 1, true);
 
         this.sfx = this.add.audioSprite('sfx');
         this.sfx.allowMultiple = true;
@@ -609,6 +629,7 @@ class GameState extends Phaser.State {
         for(let ghost of this.ghosts) {
             if(this.physics.arcade.overlap(this.shapman.group, ghost.sprite)) {
                 if(this.shapman.state === ShapmanState.Weak && [GhostState.Hunting, GhostState.Cruising].includes(ghost.state)) {
+                    this.sfx.play('hurt');
                     this.shapman.restart();
                     this.game.lives -= 1;
                     this.livesText.text = `Lives ${this.game.lives}`;
@@ -621,6 +642,7 @@ class GameState extends Phaser.State {
                 }
                 if(this.shapman.state === ShapmanState.Strong && [GhostState.Hunting, GhostState.Cruising].includes(ghost.state)) {
                     ghost.eaten();
+                    this.sfx.play('eat');
                     this.game.points += 50;
                     this.startText.text = `Points ${this.game.points}`;
                 }

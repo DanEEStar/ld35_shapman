@@ -3,14 +3,24 @@
     "app/assets/sfx.mp3"
   ],
   "spritemap": {
-    "powerup": {
+    "eat": {
       "start": 0,
-      "end": 0.6550113378684808,
+      "end": 0.37238095238095237,
+      "loop": false
+    },
+    "hurt": {
+      "start": 2,
+      "end": 2.2344444444444447,
+      "loop": false
+    },
+    "powerup": {
+      "start": 4,
+      "end": 4.655011337868481,
       "loop": false
     },
     "shrink": {
-      "start": 2,
-      "end": 2.6550113378684808,
+      "start": 6,
+      "end": 6.655011337868481,
       "loop": false
     }
   }
