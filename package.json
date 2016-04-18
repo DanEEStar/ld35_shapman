@@ -1,0 +1,25 @@
+{
+  "name": "ld35_shapeshifter",
+  "version": "0.0.1",
+  "scripts": {
+    "tsc": "tsc",
+    "tsc:w": "tsc -w",
+    "lite": "lite-server",
+    "audiosprite": "audiosprite app/assets/*.wav -e mp3 -o app/assets/sfx",
+    "start": "concurrent \"npm run tsc:w\" \"npm run lite\" "
+  },
+  "dependencies": {
+    "es6-promise": "3.1.2",
+    "es6-shim": "0.35.0",
+    "lodash": "4.11.1",
+    "phaser": "2.4.6",
+    "phaser_plugin_pathfinding": "git+https://github.com/appsbu-de/phaser_plugin_pathfinding.git",
+    "systemjs": "0.19.26"
+  },
+  "devDependencies": {
+    "audiosprite": "0.6.0",
+    "concurrently": "2.0.0",
+    "lite-server": "2.2.0",
+    "typescript": "1.8.10"
+  }
+}

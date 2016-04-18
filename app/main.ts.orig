@@ -1,0 +1,449 @@
+import _ from 'lodash';
+
+class TileContstraintSpriteMovement {
+    spriteTilePosition: Phaser.Point;
+    spriteTurnPoint: Phaser.Point;
+    gridsize: number;
+    threshold: number;
+    directionTiles: Array;
+    currentDirection: number;
+    nextDirection: number;
+    speed: number;
+    opposites: Array;
+
+    constructor(public map: Phaser.Tilemap, public sprite: Phaser.Sprite) {
+        this.spriteTilePosition = new Phaser.Point();
+        this.spriteTurnPoint = new Phaser.Point();
+        this.opposites = [ Phaser.NONE, Phaser.RIGHT, Phaser.LEFT, Phaser.DOWN, Phaser.UP ];
+
+        this.gridsize = 32;
+        this.threshold = 3;
+        this.speed = 100;
+
+        this.directionTiles = [];
+        this.currentDirection = Phaser.NONE;
+        this.nextDirection = Phaser.NONE;
+
+        this.spriteTilePosition = getSpriteTilePosition(this.sprite, this.spriteTilePosition);
+        this.updateDirectionTiles();
+        this.spriteTurnPoint = this.calculateNextSpriteTurnPoint(this.currentDirection, this.spriteTurnPoint);
+    }
+
+    updateDirectionTiles() {
+        this.directionTiles[Phaser.NONE] = this.map.getTile(this.spriteTilePosition.x, this.spriteTilePosition.y);
+        this.directionTiles[Phaser.LEFT] = this.map.getTileLeft(0, this.spriteTilePosition.x, this.spriteTilePosition.y);
+        this.directionTiles[Phaser.RIGHT] = this.map.getTileRight(0, this.spriteTilePosition.x, this.spriteTilePosition.y);
+        this.directionTiles[Phaser.UP] = this.map.getTileAbove(0, this.spriteTilePosition.x, this.spriteTilePosition.y);
+        this.directionTiles[Phaser.DOWN] = this.map.getTileBelow(0, this.spriteTilePosition.x, this.spriteTilePosition.y);
+    }
+
+    update() {
+        this.spriteTilePosition = getSpriteTilePosition(this.sprite, this.spriteTilePosition);
+
+        this.updateDirectionTiles();
+
+        if (isSpriteOnTile(this.sprite, this.spriteTurnPoint, this.threshold)) {
+            this.nextDirection = this.updateNextDirection();
+            this.calibrateSpritePosition(this.spriteTurnPoint);
+            this.move(this.moveIntent(this.nextDirection, this.currentDirection));
+            this.spriteTurnPoint = this.calculateNextSpriteTurnPoint(this.currentDirection, this.spriteTurnPoint);
+        }
+
+        if(this.currentDirection === this.opposites[this.nextDirection] || this.currentDirection === Phaser.NONE) {
+            this.currentDirection = this.nextDirection;
+            this.move(this.moveIntent(this.nextDirection, this.currentDirection));
+            this.spriteTurnPoint = this.calculateNextSpriteTurnPoint(this.currentDirection, this.spriteTurnPoint);
+        }
+    }
+
+    updateNextDirection() {
+        return this.nextDirection;
+    }
+
+    calibrateSpritePosition(spriteTurnPoint: Phaser.Point) {
+        this.sprite.x = spriteTurnPoint.x;
+        this.sprite.y = spriteTurnPoint.y;
+        this.sprite.body.reset(spriteTurnPoint.x, spriteTurnPoint.y);
+    }
+
+    calculateNextSpriteTurnPoint(direction, output) {
+        output = output || new Phaser.Point();
+        var directionTile = this.directionTiles[direction];
+        output = getTilePixelPosition(directionTile, output);
+        return output;
+    }
+
+    move(direction) {
+        var speed = this.speed;
+
+        if (direction === Phaser.LEFT || direction === Phaser.UP) {
+            speed = -speed;
+        }
+
+        if (direction === Phaser.LEFT || direction === Phaser.RIGHT) {
+            this.sprite.body.velocity.x = speed;
+        }
+        else if (direction === Phaser.UP || direction === Phaser.DOWN) {
+            this.sprite.body.velocity.y = speed;
+        }
+        else {
+            this.sprite.body.velocity.x = 0;
+            this.sprite.body.velocity.y = 0;
+        }
+
+        this.currentDirection = direction;
+    }
+
+    moveIntent(nextDirection, currentDirection) {
+        if (this.canMove(nextDirection)) {
+            return nextDirection;
+        }
+
+        if (this.canMove(currentDirection)) {
+            return currentDirection;
+        }
+
+        return Phaser.NONE;
+    }
+
+    canMove(direction) {
+        var directionTile = this.directionTiles[direction];
+        return !directionTile.collides;
+    }
+}
+
+class RandomTileConstraintSpriteMovement extends TileContstraintSpriteMovement {
+    updateNextDirection() {
+        let allDirections = [Phaser.LEFT, Phaser.RIGHT, Phaser.UP, Phaser.DOWN];
+        let possibleDirections = _.filter(allDirections, (direction) => {
+            return direction !== this.currentDirection && direction !== this.opposites[this.currentDirection];
+        });
+        this.nextDirection = _.sample(possibleDirections);
+        return this.nextDirection;
+    }
+}
+
+class PathfinderTileConstraintSpriteMovement extends TileContstraintSpriteMovement {
+    constructor(
+        public map: Phaser.Tilemap,
+        public sprite: Phaser.Sprite,
+        public mainCharacter: Shapman,
+        public pathfinder
+    ) {
+        super(map, sprite);
+    }
+
+    updateNextDirection() {
+        let pacmanSpriteTilePosition = this.mainCharacter.movement1.spriteTilePosition;
+        let ghostSpriteTilePosition = getSpriteTilePosition(this.sprite);
+        var path = [];
+        this.pathfinder.setCallbackFunction((calculatedPath) => {
+            path = calculatedPath;
+        });
+        this.pathfinder.preparePathCalculation([ghostSpriteTilePosition.x, ghostSpriteTilePosition.y], [pacmanSpriteTilePosition.x, pacmanSpriteTilePosition.y]);
+        this.pathfinder.calculatePath();
+
+        if(path && path[1]) {
+            let p = path[1];
+            if(p.x > ghostSpriteTilePosition.x) {
+                return Phaser.RIGHT;
+            }
+            if(p.x < ghostSpriteTilePosition.x) {
+                return Phaser.LEFT;
+            }
+            if(p.y > ghostSpriteTilePosition.y) {
+                return Phaser.DOWN;
+            }
+            if(p.y < ghostSpriteTilePosition.y) {
+                return Phaser.UP;
+            }
+        }
+        return Phaser.NONE;
+    }
+}
+
+class DoubleTileConstraintSpriteMovement extends TileContstraintSpriteMovement {
+    directionTiles2: Array;
+    sprite2: Phaser.Sprite;
+
+    constructor(public map: Phaser.Tilemap, public sprite: Phaser.Sprite, public sprite2: Phaser.Sprite) {
+        this.directionTiles2 = [];
+        super(map, sprite);
+        let originalPostUpdate = this.sprite.body.postUpdate.bind(this.sprite.body);
+        this.sprite.body.postUpdate = () => {
+            originalPostUpdate();
+            this.sprite2.x = this.sprite.x;
+            this.sprite2.y = this.sprite.y - 32;
+        }
+    }
+
+    updateDirectionTiles() {
+        super.updateDirectionTiles();
+        let spriteTilePosition2 = new Phaser.Point(this.spriteTilePosition.x, this.spriteTilePosition.y - 1);
+        this.directionTiles2[Phaser.NONE] = this.map.getTile(spriteTilePosition2.x, spriteTilePosition2.y);
+        this.directionTiles2[Phaser.LEFT] = this.map.getTileLeft(0, spriteTilePosition2.x, spriteTilePosition2.y);
+        this.directionTiles2[Phaser.RIGHT] = this.map.getTileRight(0, spriteTilePosition2.x, spriteTilePosition2.y);
+        this.directionTiles2[Phaser.UP] = this.map.getTileAbove(0, spriteTilePosition2.x, spriteTilePosition2.y);
+        this.directionTiles2[Phaser.DOWN] = this.map.getTileBelow(0, spriteTilePosition2.x, spriteTilePosition2.y);
+    }
+
+    canMove(direction) {
+        var directionTile = this.directionTiles[direction];
+        var directionTile2 = this.directionTiles2[direction];
+        return !directionTile.collides && !directionTile2.collides;
+    }
+}
+
+class Shapman {
+    movement1: TileContstraintSpriteMovement;
+    sprite: Phaser.Sprite;
+    sprite2: Phaser.Sprite;
+    nextDirection: number;
+    group: Phaser.Group;
+
+    constructor(tileX:number, tileY:number, private game: GameState, private map: Phaser.Tilemap) {
+        this.nextDirection = Phaser.NONE;
+
+        this.sprite = game.add.sprite(tileX * 32 + 16, tileY * 32 + 16, 'sprites', 54);
+        this.sprite.anchor.set(0.5);
+
+        this.group = game.add.group();
+        this.group.add(this.sprite);
+        //this.sprite2 = game.add.sprite(48, 48, 'sprites', 54);
+        //this.sprite2.anchor.set(0.5);
+
+        this.sprite.animations.add('walkRight', [54, 55]);
+        //this.sprite2.animations.add('walkRight', [54, 55]);
+
+        this.sprite.animations.play('walkRight', 10, true);
+        game.physics.enable(this.sprite);
+        this.sprite.body.collideWorldBounds = true;
+
+        this.movement1 = new TileContstraintSpriteMovement(map, this.sprite);
+    }
+
+    update() {
+        this.movement1.nextDirection = this.nextDirection;
+        this.movement1.update();
+    }
+
+    grow() {
+        if(!this.sprite2) {
+            this.sprite2 = this.game.add.sprite(this.sprite.x, this.sprite.y - 32, 'sprites', 54);
+            this.game.physics.enable(this.sprite2);
+            this.sprite2.anchor.set(0.5);
+            this.group.add(this.sprite2);
+            this.movement1 = new DoubleTileConstraintSpriteMovement(this.map, this.sprite, this.sprite2);
+        }
+    }
+
+    shrink() {
+        if(this.sprite2) {
+            this.group.remove(this.sprite2);
+            this.sprite2.destroy();
+            this.sprite2 = null;
+            this.movement1 = new TileContstraintSpriteMovement(this.map, this.sprite);
+        }
+    }
+}
+
+class Ghost {
+    movement: RandomTileConstraintSpriteMovement;
+    sprite: Phaser.Sprite;
+
+    constructor(xTile: number, yTile:number, game: Phaser.Game, map: Phaser.Tilemap, private mainCharacter: Shapman, private pathfinder) {
+        this.sprite = game.add.sprite(xTile * 32 + 16, yTile * 32 + 16, 'sprites', 60);
+        this.sprite.anchor.set(0.5);
+
+        this.sprite.animations.add('walkLeft', [60, 61]);
+        this.sprite.animations.add('walkUp', [62, 63]);
+        this.sprite.animations.add('walkRight', [64, 65]);
+        this.sprite.animations.add('walkDown', [66, 67]);
+
+        this.sprite.animations.play('walkRight', 10, true);
+        game.physics.enable(this.sprite);
+        this.sprite.body.collideWorldBounds = true;
+
+        this.movement = new PathfinderTileConstraintSpriteMovement(map, this.sprite, this.mainCharacter, this.pathfinder);
+    }
+
+    update() {
+        this.movement.update();
+    }
+}
+
+class Level {
+    constructor(public gameState: GameState, public map: Phaser.Tilemap) {
+        this.gameState.diamondGroup = this.gameState.add.group();
+        this.gameState.ghosts = [];
+    }
+
+    loadSpecialSprites() {
+        for(let x = 0; x < this.map.width; x += 1) {
+            for (let y = 0; y < this.map.height; y += 1) {
+                let tile = this.map.getTile(x, y);
+                if (tile && tile.index === 96) {
+                    this.map.putTile(1, x, y);
+                    this.gameState.shapman = new Shapman(x, y, this.gameState, this.gameState.map);
+                }
+
+                if(tile && tile.index === 60) {
+                    this.map.putTile(1, x, y);
+
+                    let diamondSprite = this.gameState.add.sprite(x * 32 + 16, y * 32 + 16, 'sprites', 59);
+                    diamondSprite.anchor.set(0.5);
+                    this.gameState.physics.enable(diamondSprite);
+                    diamondSprite.body.setSize(8, 8);
+                    this.gameState.diamondGroup.add(diamondSprite);
+                }
+            }
+        }
+
+        for(let x = 0; x < this.map.width; x += 1) {
+            for(let y = 0; y < this.map.height; y += 1) {
+                let tile = this.map.getTile(x, y);
+
+                if(tile && [91, 92, 93, 94].includes(tile.index)) {
+                    this.map.putTile(1, x, y);
+                    this.gameState.ghosts.push(new Ghost(x, y, this.gameState.game, this.map, this.gameState.shapman, this.gameState.pathfinder));
+                }
+
+            }
+        }
+    }
+}
+
+class GameState extends Phaser.State {
+    level: Level;
+    diamondGroup: Phaser.Group;
+    shapman: Shapman;
+    ghosts: Ghost[];
+    map: Phaser.Tilemap;
+    layer: Phaser.TilemapLayer;
+
+    init() {
+        this.physics.startSystem(Phaser.Physics.ARCADE);
+    }
+
+    preload() {
+        this.load.tilemap('tilemap', 'app/pacman.json', null, Phaser.Tilemap.TILED_JSON);
+        this.load.image('tiles', 'app/assets/pacback.png');
+        this.load.spritesheet('sprites', 'app/assets/pacback.png', 32, 32, -1, 1, 1);
+        this.load.audio('bu', ['app/assets/bu-lively-and-hidden.mp3']);
+        this.load.audiosprite('sfx', ['app/assets/sfx.mp3'], 'app/assets/sfx.json');
+    }
+
+    create() {
+        this.map = this.add.tilemap('tilemap');
+        this.map.addTilesetImage('pacback', 'tiles');
+        this.layer = this.map.createLayer('level1');
+
+
+        let walkables = [0, 1].concat(_.range(41, 255));
+        this.pathfinder = game.plugins.add(Phaser.Plugin.PathFinderPlugin);
+        this.pathfinder.setGrid(this.map.layers[0].data, walkables);
+
+        this.cursors = this.input.keyboard.createCursorKeys();
+
+<<<<<<< f271d67d91eb10d7a21b98651cbc686f2a03f302
+        this.powerup = this.add.sprite(48, 176, 'sprites', 95);
+        this.physics.enable(this.powerup);
+        this.powerup.anchor.set(0.5);
+
+        this.shrinkdown = this.add.sprite(48, 272, 'sprites', 95);
+        this.physics.enable(this.shrinkdown);
+=======
+        this.powerup = this.game.add.sprite(48, 176, 'sprites', 97);
+        this.powerup.anchor.set(0.5);
+
+        this.shrinkdown = this.game.add.sprite(48, 272, 'sprites', 98);
+>>>>>>> mario mushrooms
+        this.shrinkdown.anchor.set(0.5);
+
+        this.map.setCollisionBetween(2, 40);
+
+        this.level = new Level(this, this.map);
+        this.level.loadSpecialSprites();
+
+        let music = this.add.audio('bu');
+        music.play();
+
+        this.sfx = this.add.audioSprite('sfx');
+        this.sfx.allowMultiple = true;
+    }
+
+    checkKeys() {
+        if (this.cursors.left.isDown) {
+            this.shapman.nextDirection = Phaser.LEFT;
+        }
+        else if (this.cursors.right.isDown) {
+            this.shapman.nextDirection = Phaser.RIGHT;
+        }
+        else if (this.cursors.up.isDown) {
+            this.shapman.nextDirection = Phaser.UP;
+        }
+        else if (this.cursors.down.isDown) {
+            this.shapman.nextDirection = Phaser.DOWN;
+        }
+    }
+
+    update() {
+        this.checkKeys();
+        this.shapman.update();
+
+        for(let ghost of this.ghosts) {
+            ghost.update();
+        }
+
+        this.diamondGroup.forEachAlive((diamond) => {
+            if(this.physics.arcade.overlap(this.shapman.group, diamond)) {
+                diamond.kill();
+                console.log('num diamonds: ', this.diamondGroup.countLiving());
+            }
+        });
+
+        if(this.physics.arcade.overlap(this.shapman.group, this.powerup)) {
+            this.shapman.grow();
+            this.powerup.kill();
+            this.sfx.play('powerup');
+        }
+
+        if(this.physics.arcade.overlap(this.shapman.group, this.shrinkdown)) {
+            this.shapman.shrink();
+            this.shrinkdown.kill();
+            this.sfx.play('shrink');
+        }
+    }
+}
+
+function getSpriteTilePosition(sprite: Phaser.Sprite, output:Phaser.Point=null, gridsize:number=32) {
+    let p = output || new Phaser.Point();
+    p.x = Phaser.Math.snapToFloor(Math.floor(sprite.x), gridsize) / gridsize;
+    p.y = Phaser.Math.snapToFloor(Math.floor(sprite.y), gridsize) / gridsize;
+    return p;
+}
+
+function getTilePixelPosition(tilePosition: Phaser.Point, output:Phaser.Point=null, gridsize:number=32) {
+    output = output || new Phaser.Point();
+    output.x = (tilePosition.x * gridsize) + (gridsize / 2);
+    output.y = (tilePosition.y * gridsize) + (gridsize / 2);
+
+    return output;
+}
+
+function isSpriteOnTile(sprite: Phaser.Sprite, tileMiddle: Phaser.Point, threshold:number=3) {
+    var cx = Math.floor(sprite.x);
+    var cy = Math.floor(sprite.y);
+
+    return Phaser.Math.fuzzyEqual(cx, tileMiddle.x, threshold) && Phaser.Math.fuzzyEqual(cy, tileMiddle.y, threshold);
+}
+
+class Game extends Phaser.Game {
+    constructor() {
+        super(640, 480, Phaser.AUTO, 'game');
+        this.state.add('GameState', GameState);
+        this.state.start('GameState');
+    }
+}
+
+var game = new Game();
