@@ -689,12 +689,34 @@ class Game extends Phaser.Game {
     constructor() {
         super(640, 480, Phaser.AUTO, 'game');
         this.state.add('GameState', GameState);
+        this.state.add('TitleState', TitleState);
         this.state.add('GameOverState', GameOverState);
-        this.state.start('GameState', true, false, 1);
+        this.state.start('TitleState');
         this.points = 0;
         this.lives = 5;
     }
 }
+
+
+class TitleState extends Phaser.State {
+    create() {
+        let style = { font: "42px Thirteen Pixel Fonts Regular", fill: "white", align: "center" };
+        let startText = this.game.add.text(320, 240, 'Start', style);
+        startText.anchor.x = 0.5;
+        startText.inputEnabled = true;
+        startText.events.onInputDown.add(() => {
+            this.game.state.start('GameState', true, false, 1)
+        });
+
+        let helpText = this.game.add.text(320, 300, 'Help', style);
+        helpText.anchor.x = 0.5;
+        helpText.inputEnabled = true;
+        helpText.events.onInputDown.add(() => {
+            this.game.state.start('HelpState');
+        });
+    }
+}
+
 
 class GameOverState extends Phaser.State {
     create() {
