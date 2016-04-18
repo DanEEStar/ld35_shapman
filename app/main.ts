@@ -8,17 +8,15 @@ class TileContstraintSpriteMovement {
     directionTiles: Array;
     currentDirection: number;
     nextDirection: number;
-    speed: number;
     opposites: Array;
 
-    constructor(public map: Phaser.Tilemap, public layer:Phaser.TilemapLayer, public sprite: Phaser.Sprite) {
+    constructor(public map: Phaser.Tilemap, public layer:Phaser.TilemapLayer, public sprite: Phaser.Sprite, public speed:number) {
         this.spriteTilePosition = new Phaser.Point();
         this.spriteTurnPoint = new Phaser.Point();
         this.opposites = [ Phaser.NONE, Phaser.RIGHT, Phaser.LEFT, Phaser.DOWN, Phaser.UP ];
 
         this.gridsize = 32;
         this.threshold = 3;
-        this.speed = 100;
 
         this.directionTiles = [];
         this.currentDirection = Phaser.NONE;
@@ -129,9 +127,10 @@ class PathfinderTileConstraintSpriteMovement extends TileContstraintSpriteMoveme
         public layer: Phaser.TilemapLayer,
         public sprite: Phaser.Sprite,
         public mainCharacter: Shapman,
-        public pathfinder
+        public pathfinder,
+        public speed
     ) {
-        super(map, layer, sprite);
+        super(map, layer, sprite, speed);
     }
 
     updateNextDirection() {
@@ -169,9 +168,10 @@ class GhostGoHomeConstraintSpriteMovement extends TileContstraintSpriteMovement 
         public layer: Phaser.TilemapLayer,
         public sprite: Phaser.Sprite,
         public ghost: Ghost,
-        public pathfinder
+        public pathfinder,
+        public speed
     ) {
-        super(map, layer, sprite);
+        super(map, layer, sprite, speed);
     }
 
     updateNextDirection() {
@@ -206,9 +206,9 @@ class DoubleTileConstraintSpriteMovement extends TileContstraintSpriteMovement {
     directionTiles2: Array;
     sprite2: Phaser.Sprite;
 
-    constructor(public map: Phaser.Tilemap, public layer: Phaser.TilemapLayer, public sprite: Phaser.Sprite, public sprite2: Phaser.Sprite) {
+    constructor(public map: Phaser.Tilemap, public layer: Phaser.TilemapLayer, public sprite: Phaser.Sprite, public sprite2: Phaser.Sprite, public speed:number) {
         this.directionTiles2 = [];
-        super(map, layer, sprite);
+        super(map, layer, sprite, speed);
         let originalPostUpdate = this.sprite.body.postUpdate.bind(this.sprite.body);
         this.sprite.body.postUpdate = () => {
             originalPostUpdate();
@@ -284,7 +284,7 @@ class Shapman {
         this.sprite2.kill();
         this.game.physics.enable(this.sprite2);
 
-        this.movement = new TileContstraintSpriteMovement(map, this.layer, this.sprite);
+        this.movement = new TileContstraintSpriteMovement(map, this.layer, this.sprite, 100);
     }
 
     update() {
@@ -328,7 +328,7 @@ class Shapman {
             this.group.add(this.sprite2);
 
             let oldMovement = this.movement;
-            this.movement = new DoubleTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.sprite2);
+            this.movement = new DoubleTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.sprite2, 100);
             this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
             this.updateAnimation = true;
         }
@@ -341,7 +341,7 @@ class Shapman {
             this.sprite2.kill();
 
             let oldMovement = this.movement;
-            this.movement = new TileContstraintSpriteMovement(this.map, this.layer, this.sprite);
+            this.movement = new TileContstraintSpriteMovement(this.map, this.layer, this.sprite, 100);
             this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
             this.updateAnimation = true;
         }
@@ -377,7 +377,7 @@ class Ghost {
     state: GhostState;
     lastState: GhostState;
 
-    constructor(public xTile: number, public yTile:number, game: Phaser.Game, private map: Phaser.Tilemap, private layer:Phaser.TilemapLayer, private mainCharacter: Shapman, private pathfinder) {
+    constructor(public xTile: number, public yTile:number, public game: Phaser.Game, private map: Phaser.Tilemap, private layer:Phaser.TilemapLayer, private mainCharacter: Shapman, private pathfinder) {
         this.sprite = game.add.sprite(xTile*32+16, yTile*32+16, 'sprites', 60);
         this.sprite.anchor.set(0.5);
         this.state = GhostState.Cruising;
@@ -387,22 +387,22 @@ class Ghost {
         this.sprite.animations.add('huntingWalkRight', [64, 65]);
         this.sprite.animations.add('huntingWalkDown', [66, 67]);
 
-        this.sprite.animations.add('cruisingWalkLeft', [114, 115]);
-        this.sprite.animations.add('cruisingWalkUp', [116, 117]);
-        this.sprite.animations.add('cruisingWalkRight', [118, 119]);
-        this.sprite.animations.add('cruisingWalkDown', [120, 121]);
+        this.sprite.animations.add('cruisingWalkLeft', [115, 116, 119, 120]);
+        this.sprite.animations.add('cruisingWalkUp', [115, 116, 119, 120]);
+        this.sprite.animations.add('cruisingWalkRight', [115, 116, 119, 120]);
+        this.sprite.animations.add('cruisingWalkDown', [115, 116, 119, 120]);
 
-        this.sprite.animations.add('eatenWalkLeft', [68, 69, 70, 71]);
-        this.sprite.animations.add('eatenWalkUp', [68, 69, 70, 71]);
-        this.sprite.animations.add('eatenWalkRight', [68, 69, 70, 71]);
-        this.sprite.animations.add('eatenWalkDown', [68, 69, 70, 71]);
+        this.sprite.animations.add('eatenWalkLeft', [72, 73, 74, 75]);
+        this.sprite.animations.add('eatenWalkUp', [72, 73, 74, 75]);
+        this.sprite.animations.add('eatenWalkRight', [72, 73, 74, 75]);
+        this.sprite.animations.add('eatenWalkDown', [72, 73, 74, 75]);
 
         this.sprite.animations.play('cruisingWalkRight', 10, true);
         game.physics.enable(this.sprite);
         this.sprite.body.collideWorldBounds = true;
         this.sprite.body.setSize(8, 8);
 
-        this.movement = new RandomTileConstraintSpriteMovement(this.map, this.layer, this.sprite);
+        this.movement = new RandomTileConstraintSpriteMovement(this.map, this.layer, this.sprite, 40 + (this.game.level * 10));
     }
 
     changeState(newState: GhostState) {
@@ -411,13 +411,13 @@ class Ghost {
             let oldMovement = this.movement;
 
             if(this.state === GhostState.Hunting) {
-                this.movement = new PathfinderTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.mainCharacter, this.pathfinder);
+                this.movement = new PathfinderTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.mainCharacter, this.pathfinder, 60 + (this.game.level * 10));
             }
             else if(this.state === GhostState.Cruising) {
-                this.movement = new RandomTileConstraintSpriteMovement(this.map, this.layer, this.sprite);
+                this.movement = new RandomTileConstraintSpriteMovement(this.map, this.layer, this.sprite, 40 + (this.game.level * 10));
             }
             else if(this.state === GhostState.Eaten) {
-                this.movement = new GhostGoHomeConstraintSpriteMovement(this.map, this.layer, this.sprite, this, this.pathfinder);
+                this.movement = new GhostGoHomeConstraintSpriteMovement(this.map, this.layer, this.sprite, this, this.pathfinder, 50 + (this.game.level * 10));
             }
 
             this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
@@ -567,7 +567,7 @@ class GameState extends Phaser.State {
     create() {
         this.map = this.add.tilemap('tilemap');
         this.map.addTilesetImage('pacback', 'tiles');
-        this.layer = this.map.createLayer(`Kachelebene ${this.levelNumber}`);
+        this.layer = this.map.createLayer(`Kachelebene 1`);
 
         let walkables = [0, 1].concat(_.range(41, 255));
         this.pathfinder = game.plugins.add(Phaser.Plugin.PathFinderPlugin);
@@ -586,9 +586,10 @@ class GameState extends Phaser.State {
         this.sfx = this.add.audioSprite('sfx');
         this.sfx.allowMultiple = true;
 
-        let style = { font: "26px Thirteen Pixel Fonts Regular", fill: 'white', align: "right" };
-        this.startText = this.add.text(10, 440, `Points ${this.game.points}`, style);
-        this.livesText = this.add.text(320, 440, `Lives ${this.game.lives}`, style);
+        let style = { font: '26px Thirteen Pixel Fonts Regular', fill: '#1bd7ff', align: 'left' };
+        this.startText = this.add.text(5, 440, `Points ${this.game.points}`, style);
+        this.livesText = this.add.text(530, 440, `Lives ${this.game.lives}`, _.extend({}, style, {align: 'right'}));
+        this.levelText = this.add.text(280, 440, `Level ${this.game.level}`, _.extend({}, style, {align: 'center'}));
     }
 
     checkKeys() {
@@ -617,13 +618,13 @@ class GameState extends Phaser.State {
         this.diamondGroup.forEachAlive((diamond) => {
             if(this.physics.arcade.overlap(this.shapman.group, diamond)) {
                 diamond.kill();
-                this.game.points += 10;
+                this.game.points += (10 * this.game.level);
                 this.startText.text = `Points ${this.game.points}`;
 
                 if(this.diamondGroup.countLiving() === 0) {
-                    this.state.start('GameState', true, false, 1);
-                    this.game.points += 100;
-                    this.startText.text = `Points ${this.game.points}`;
+                    this.game.level += 1;
+                    this.levelText.text = `Level ${this.game.level}`;
+                    this.state.start('GameState', true, false, this.game.level);
                 }
             }
         });
@@ -714,22 +715,25 @@ function isSpriteOnTile(sprite: Phaser.Sprite, tileMiddle: Phaser.Point, thresho
 class Game extends Phaser.Game {
     points: number;
     lives: number;
+    level: number;
 
     constructor() {
         super(640, 480, Phaser.AUTO, 'game');
         this.state.add('GameState', GameState);
         this.state.add('TitleState', TitleState);
         this.state.add('GameOverState', GameOverState);
+        this.state.add('HelpState', HelpState);
         this.state.start('TitleState');
         this.points = 0;
         this.lives = 5;
+        this.level = 1;
     }
 }
 
 
 class TitleState extends Phaser.State {
     create() {
-        let style = { font: "42px Thirteen Pixel Fonts Regular", fill: "white", align: "center" };
+        let style = { font: "42px Thirteen Pixel Fonts Regular", fill: "#1bd7ff", align: "center" };
         let startText = this.game.add.text(320, 240, 'Start', style);
         startText.anchor.x = 0.5;
         startText.inputEnabled = true;
@@ -749,12 +753,27 @@ class TitleState extends Phaser.State {
 
 class GameOverState extends Phaser.State {
     create() {
-        let style = { font: "75px Thirteen Pixel Fonts Regular", fill: "white", align: "center" };
+        let style = { font: "75px Thirteen Pixel Fonts Regular", fill: "#1bd7ff", align: "center" };
         let startText = this.game.add.text(320, 240, 'Game Over', style);
         startText.anchor.x = 0.5;
         startText.inputEnabled = true;
         startText.events.onInputDown.add(() => {
-            this.game.state.start('GameState', true, false, 1);
+            this.game.state.start('GameState', true, false, this.game.level);
+        });
+    }
+}
+
+
+class HelpState extends Phaser.State {
+    preload() {
+        this.game.load.image('help1', 'app/assets/shapmanhelp.png');
+    }
+
+    create() {
+        let image = this.game.add.image(0, 0, 'help1');
+        image.inputEnabled = true;
+        image.events.onInputDown.add(() => {
+            this.game.state.start('TitleState');
         });
     }
 }
