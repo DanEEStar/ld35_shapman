@@ -135,7 +135,7 @@ class PathfinderTileConstraintSpriteMovement extends TileContstraintSpriteMoveme
     }
 
     updateNextDirection() {
-        let pacmanSpriteTilePosition = this.mainCharacter.movement1.spriteTilePosition;
+        let pacmanSpriteTilePosition = this.mainCharacter.movement.spriteTilePosition;
         let ghostSpriteTilePosition = getSpriteTilePosition(this.sprite);
         var path = [];
         this.pathfinder.setCallbackFunction((calculatedPath) => {
@@ -240,7 +240,7 @@ enum ShapmanState {
 }
 
 class Shapman {
-    movement1: TileContstraintSpriteMovement;
+    movement: TileContstraintSpriteMovement;
     sprite: Phaser.Sprite;
     sprite2: Phaser.Sprite;
     nextDirection: number;
@@ -270,27 +270,27 @@ class Shapman {
         game.physics.enable(this.sprite);
         this.sprite.body.collideWorldBounds = true;
 
-        this.movement1 = new TileContstraintSpriteMovement(map, this.layer, this.sprite);
+        this.movement = new TileContstraintSpriteMovement(map, this.layer, this.sprite);
     }
 
     update() {
-        if(this.lastDirection !== this.movement1.currentDirection) {
-            if(this.movement1.currentDirection === Phaser.UP) {
+        if(this.lastDirection !== this.movement.currentDirection) {
+            if(this.movement.currentDirection === Phaser.UP) {
                 this.sprite.animations.play('walkUp', 5, true);
             }
-            else if(this.movement1.currentDirection === Phaser.LEFT) {
+            else if(this.movement.currentDirection === Phaser.LEFT) {
                 this.sprite.animations.play('walkLeft', 5, true);
             }
-            else if(this.movement1.currentDirection === Phaser.RIGHT) {
+            else if(this.movement.currentDirection === Phaser.RIGHT) {
                 this.sprite.animations.play('walkRight', 5, true);
             }
-            else if(this.movement1.currentDirection === Phaser.DOWN) {
+            else if(this.movement.currentDirection === Phaser.DOWN) {
                 this.sprite.animations.play('walkDown', 5, true);
             }
         }
-        this.lastDirection = this.movement1.currentDirection;
-        this.movement1.nextDirection = this.nextDirection;
-        this.movement1.update();
+        this.lastDirection = this.movement.currentDirection;
+        this.movement.nextDirection = this.nextDirection;
+        this.movement.update();
     }
 
     grow() {
@@ -300,7 +300,9 @@ class Shapman {
             this.game.physics.enable(this.sprite2);
             this.sprite2.anchor.set(0.5);
             this.group.add(this.sprite2);
-            this.movement1 = new DoubleTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.sprite2);
+            let oldMovement = this.movement;
+            this.movement = new DoubleTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.sprite2);
+            this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
         }
     }
 
@@ -310,7 +312,9 @@ class Shapman {
             this.group.remove(this.sprite2);
             this.sprite2.destroy();
             this.sprite2 = null;
-            this.movement1 = new TileContstraintSpriteMovement(this.map, this.layer, this.sprite);
+            let oldMovement = this.movement;
+            this.movement = new TileContstraintSpriteMovement(this.map, this.layer, this.sprite);
+            this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
         }
     }
 
@@ -319,8 +323,16 @@ class Shapman {
         this.grow();
         this.sprite.x = this.tileX * 32 + 16;
         this.sprite.y = this.tileY * 32 + 16;
-        this.movement1.calibrateSpritePosition(new Phaser.Point(this.sprite.x, this.sprite.y));
+        this.movement.calibrateSpritePosition(new Phaser.Point(this.sprite.x, this.sprite.y));
     }
+}
+
+function copyRelevantMovementProperties(newMovement:TileContstraintSpriteMovement, oldMovement:TileContstraintSpriteMovement) {
+    newMovement.currentDirection = oldMovement.currentDirection;
+    newMovement.nextDirection = oldMovement.nextDirection;
+    newMovement.spriteTilePosition = oldMovement.spriteTilePosition;
+    newMovement.spriteTurnPoint = oldMovement.spriteTurnPoint;
+    return newMovement;
 }
 
 enum GhostState {
@@ -379,10 +391,7 @@ class Ghost {
                 this.movement = new GhostGoHomeConstraintSpriteMovement(this.map, this.layer, this.sprite, this, this.pathfinder);
             }
 
-            this.movement.currentDirection = oldMovement.currentDirection;
-            this.movement.nextDirection = oldMovement.nextDirection;
-            this.movement.spriteTilePosition = oldMovement.spriteTilePosition;
-            this.movement.spriteTurnPoint = oldMovement.spriteTurnPoint;
+            this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
         }
     }
 
@@ -548,7 +557,7 @@ class GameState extends Phaser.State {
         this.sfx = this.add.audioSprite('sfx');
         this.sfx.allowMultiple = true;
 
-        let style = { font: "28px Thirteen Pixel Fonts Regular", fill: 'white', align: "right" };
+        let style = { font: "26px Thirteen Pixel Fonts Regular", fill: 'white', align: "right" };
         this.startText = this.add.text(10, 440, `Points ${this.game.points}`, style);
         this.livesText = this.add.text(320, 440, `Lives ${this.game.lives}`, style);
     }
