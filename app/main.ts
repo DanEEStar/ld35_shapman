@@ -247,46 +247,73 @@ class Shapman {
     lastDirection: number;
     group: Phaser.Group;
     state: ShapmanState;
+    updateAnimation: boolean;
 
     constructor(public tileX:number, public tileY:number, private game: GameState, private map: Phaser.Tilemap, private layer: Phaser.TilemapLayer) {
         this.state = ShapmanState.Strong;
         this.nextDirection = Phaser.NONE;
+        this.updateAnimation = false;
 
         this.sprite = game.add.sprite(tileX * 32 + 16, tileY * 32 + 16, 'sprites', 54);
         this.sprite.anchor.set(0.5);
 
         this.group = game.add.group();
         this.group.add(this.sprite);
-        //this.sprite2 = game.add.sprite(48, 48, 'sprites', 54);
-        //this.sprite2.anchor.set(0.5);
 
-        this.sprite.animations.add('walkRight', [54, 55]);
-        this.sprite.animations.add('walkDown', [54, 56]);
-        this.sprite.animations.add('walkLeft', [54, 57]);
-        this.sprite.animations.add('walkUp', [54, 58]);
-        this.sprite.animations.add('stand', [54]);
+        this.sprite.animations.add('weakWalkRight', [54, 55]);
+        this.sprite.animations.add('weakWalkDown', [54, 56]);
+        this.sprite.animations.add('weakWalkLeft', [54, 57]);
+        this.sprite.animations.add('weakWalkUp', [54, 58]);
+        this.sprite.animations.add('weakStand', [54]);
 
-        //this.sprite.animations.play('walkDown', 5, true);
+        this.sprite.animations.add('strongWalkRight', [126, 129]);
+        this.sprite.animations.add('strongWalkDown', [128, 129]);
+        this.sprite.animations.add('strongWalkLeft', [127, 129]);
+        this.sprite.animations.add('strongWalkUp', [129]);
+        this.sprite.animations.add('strongStand', [129]);
         game.physics.enable(this.sprite);
         this.sprite.body.collideWorldBounds = true;
+
+        this.sprite2 = this.game.add.sprite(0, 0, 'sprites', 54);
+        this.sprite2.anchor.set(0.5);
+        this.sprite2.animations.add('strongWalkRight', [108, 110]);
+        this.sprite2.animations.add('strongWalkDown', [110]);
+        this.sprite2.animations.add('strongWalkLeft', [109, 110]);
+        this.sprite2.animations.add('strongWalkUp', [110, 111]);
+        this.sprite2.animations.add('strongStand', [110]);
+        this.sprite2.kill();
+        this.game.physics.enable(this.sprite2);
 
         this.movement = new TileContstraintSpriteMovement(map, this.layer, this.sprite);
     }
 
     update() {
-        if(this.lastDirection !== this.movement.currentDirection) {
+        if(this.updateAnimation || this.lastDirection !== this.movement.currentDirection) {
+            let animPrefix = 'weak';
+            if(this.state == ShapmanState.Strong) {
+                animPrefix = 'strong';
+            }
             if(this.movement.currentDirection === Phaser.UP) {
-                this.sprite.animations.play('walkUp', 5, true);
+                this.sprite.animations.play(animPrefix + 'WalkUp', 5, true);
+                this.sprite2.animations.play(animPrefix + 'WalkUp', 5, true);
             }
             else if(this.movement.currentDirection === Phaser.LEFT) {
-                this.sprite.animations.play('walkLeft', 5, true);
+                this.sprite.animations.play(animPrefix + 'WalkLeft', 5, true);
+                this.sprite2.animations.play(animPrefix + 'WalkLeft', 5, true);
             }
             else if(this.movement.currentDirection === Phaser.RIGHT) {
-                this.sprite.animations.play('walkRight', 5, true);
+                this.sprite.animations.play(animPrefix + 'WalkRight', 5, true);
+                this.sprite2.animations.play(animPrefix + 'WalkRight', 5, true);
             }
             else if(this.movement.currentDirection === Phaser.DOWN) {
-                this.sprite.animations.play('walkDown', 5, true);
+                this.sprite.animations.play(animPrefix + 'WalkDown', 5, true);
+                this.sprite2.animations.play(animPrefix + 'WalkDown', 5, true);
             }
+            else if(this.movement.currentDirection === Phaser.NONE) {
+                this.sprite.animations.play(animPrefix + 'Stand', 5, true);
+                this.sprite2.animations.play(animPrefix + 'Stand', 5, true);
+            }
+            this.updateAnimation = false;
         }
         this.lastDirection = this.movement.currentDirection;
         this.movement.nextDirection = this.nextDirection;
@@ -295,26 +322,28 @@ class Shapman {
 
     grow() {
         this.state = ShapmanState.Strong;
-        if(!this.sprite2) {
-            this.sprite2 = this.game.add.sprite(this.sprite.x, this.sprite.y - 32, 'sprites', 54);
-            this.game.physics.enable(this.sprite2);
-            this.sprite2.anchor.set(0.5);
+        if(!this.sprite2.alive) {
+            this.sprite2.revive();
+            this.sprite2.visible = true;
             this.group.add(this.sprite2);
+
             let oldMovement = this.movement;
             this.movement = new DoubleTileConstraintSpriteMovement(this.map, this.layer, this.sprite, this.sprite2);
             this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
+            this.updateAnimation = true;
         }
     }
 
     shrink() {
         this.state = ShapmanState.Weak;
-        if(this.sprite2) {
+        if(this.sprite2.alive) {
             this.group.remove(this.sprite2);
-            this.sprite2.destroy();
-            this.sprite2 = null;
+            this.sprite2.kill();
+
             let oldMovement = this.movement;
             this.movement = new TileContstraintSpriteMovement(this.map, this.layer, this.sprite);
             this.movement = copyRelevantMovementProperties(this.movement, oldMovement);
+            this.updateAnimation = true;
         }
     }
 
