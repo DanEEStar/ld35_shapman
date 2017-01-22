@@ -10,7 +10,7 @@ NAME = 'ld35_shapman'
 
 env.use_ssh_config = True
 env.user = 'root'
-env.hosts = ['gurten.iterativ.ch']
+env.hosts = ['egger.guru']
 env.remote_app = '/srv/www/%s' % NAME
 env.local_app = _local_path('./')
 env.rsync_exclude = ['.git']
